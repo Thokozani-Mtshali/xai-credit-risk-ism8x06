@@ -1,0 +1,90 @@
+Preprocessing Decision Log
+
+Project: Explainable AI for Credit Risk Assessment Stage: 
+Data Cleaning — Missingness Diagnosis and Handling Date: [06/09/2026] 
+Tools: Python 3.13, pandas, VS Code + Jupyter extension
+
+1. German Credit Dataset
+
+1.1 Dataset source correction
+
+Initial download (german_credit_data.csv from Kaggle) was identified as a simplified derivative containing only 10 columns, not the 20-attribute dataset named in the approved proposal.
+Corrected by fetching the original UCI Statlog (German Credit Data) dataset via the ucimlrepo Python package (fetch_ucirepo(id=144)), confirmed shape (1000, 21) — 20 features + target, matching the approved proposal.
+Saved locally as german_credit_uci_original.csv.
+
+1.2 Missingness check
+
+UCI documentation (statlog_german_credit_data.variables) confirms zero missing values for all 20 attributes and the target.
+Verified independently with df_german.isnull().sum() — confirmed all zero.
+Decision: No imputation required for this dataset.
+
+1.3 Categorical decoding
+
+Raw values were coded (e.g. A11, A34) rather than human-readable. Decoded 13 categorical columns using dictionaries mapped from the official UCI attribute documentation, applied via .replace().
+Note: .map() initially failed silently (returned all NaN) due to pandas 3.0.5's nullable StringArray dtype; .replace() was used instead and worked correctly.
+Verified post-decode: df_german.isnull().sum() confirmed zero nulls introduced by the decoding step.
+Saved final cleaned file as german_credit_uci_original.csv (overwritten with decoded version).
+2. Home Credit Default Risk Dataset (application_train.csv)
+
+2.1 Scope decision
+
+Only application_train.csv was used (307,511 rows, 122 columns). Supplementary tables (bureau, bureau_balance, credit_card_balance, installments_payments, POS_CASH_balance, previous_application) were not merged in, to keep scope manageable given the dataset's already-flagged computational risk (Risk 4 in the approved risk register). application_test.csv and sample_submission.csv were excluded — no TARGET column, irrelevant to this study.
+
+2.2 Missingness calculated as percentage of rows
+
+50 columns exceeded 20% missing; 17 columns had missingness below 20%; remaining 55 columns had none.
+
+2.3 Columns dropped (>20% missing, no viable recovery)
+
+48 columns dropped: mostly building/property physical-characteristic fields (e.g. COMMONAREA_AVG/MODE/MEDI, LIVINGAPARTMENTS_*, FLOORSMIN_*, YEARS_BUILD_*, ELEVATORS_*, WALLSMATERIAL_MODE, NONLIVINGAREA_*, etc.), ranging ~48–70% missing. Pattern consistent with an optional supplementary building survey not completed for most applications. No reliable proxy variable was identified to recover a "not applicable" interpretation for this group.
+EXT_SOURCE_1 (56.4% missing) also dropped. Unlike the property columns, this is an external credit bureau score — its absence likely reflects genuine data unavailability rather than structural non-applicability. Logged separately as a limitation given its plausible predictive relevance to credit risk.
+
+2.4 Columns retained above 20% threshold, with justified exceptions
+
+OWN_CAR_AGE (66.0% missing): cross-tabulated against FLAG_OWN_CAR. Missingness confirmed Missing At Random — 202,924 of 202,929 missing cases correspond to applicants who do not own a car. Imputed as 0 for non-owners (FLAG_OWN_CAR == 'N'); the 5 remaining genuine gaps (car owners with missing age) imputed using the median age among car owners.
+OCCUPATION_TYPE (31.3% missing): cross-tabulated against NAME_INCOME_TYPE. Missingness concentrated among pensioners (55,357 of 55,362 missing) but also present, less explicably, among ~41,000 working/commercial-associate/state-servant applicants — a messier MAR pattern than OWN_CAR_AGE, with no single clean proxy variable. Retained (not dropped) given its plausible relevance to credit risk (occupation relates to income stability); missing values imputed as a new category, "Unknown/Not Applicable", rather than assuming a specific cause.
+
+2.5 Columns below 20% threshold — standard imputation
+
+AMT_REQ_CREDIT_BUREAU_HOUR/DAY/WEEK/MON/QRT/YEAR (13.5% missing each): confirmed via cross-check that all missing rows are missing across all six columns simultaneously (41,519 rows) — consistent with "no credit bureau inquiry history" rather than random data loss. Imputed as 0.
+EXT_SOURCE_2 (0.2%), EXT_SOURCE_3 (19.8%): no clear structural explanation identified; imputed with median (per standard rule in the approved Data Quality Assurance Plan).
+Remaining low-missingness columns (AMT_ANNUITY, AMT_GOODS_PRICE, CNT_FAM_MEMBERS, OBS_30/60_CNT_SOCIAL_CIRCLE, DEF_30/60_CNT_SOCIAL_CIRCLE, DAYS_LAST_PHONE_CHANGE — all <1% missing): imputed via median (numeric). NAME_TYPE_SUITE: imputed via mode (categorical).
+
+2.6 Result
+
+Final shape: 307,511 rows × 74 columns, 0 missing values.
+Saved as application_train_cleaned.csv.
+3. LendingClub Dataset (loans_full_schema.csv)
+
+3.1 Dataset verification
+
+Confirmed loans_full_schema is a legitimate, distinct, well-documented dataset (10,000 observations, ~55 variables) rather than a trimmed/simplified derivative — no substitution needed. Retained as originally downloaded.
+
+3.2 Missingness identified
+
+9 columns with missing values, ranging from 0.24% to 85.45%. Remaining 47 columns had no missing values.
+
+3.3 Joint-income fields (perfect structural MAR)
+
+annual_income_joint (85.05%), debt_to_income_joint (85.05%), verification_income_joint (85.45%): cross-tabulated against application_type. Missingness corresponds perfectly (100%) to individual (non-joint) applications — 8,505 of 8,505 missing cases are individual applications; all 1,495 joint applications have complete values. Imputed as 0 (numeric fields) / "Not Applicable" (categorical field), representing genuine structural absence of a co-borrower rather than unknown data.
+
+3.4 Delinquency/inquiry timing fields (MAR, "event never occurred")
+
+months_since_last_delinq (56.58%), months_since_90d_late (77.15%), months_since_last_credit_inquiry (12.71%): cross-tabulated months_since_last_delinq against delinq_2y. 5,646 of 5,658 missing cases (99.8%) correspond to applicants with zero recorded delinquencies in the last 2 years, supporting the interpretation that missingness reflects "no such event has occurred" rather than an unknown/unrecorded value. All three fields imputed with a sentinel value of 999, representing "no event on record / effectively very long ago."
+Limitation noted: sentinel-value imputation is a modelling convenience; tree-based models (Random Forest, XGBoost) can generally learn an implicit threshold around this value, but it would distort results if a linear model were ever applied directly to this feature without adjustment.
+
+3.5 Remaining low-missingness columns — standard imputation
+
+emp_title (8.33%): imputed as "Not Disclosed".
+emp_length (8.17%): imputed as 0 (plausible for unemployed/undisclosed applicants).
+num_accounts_120d_past_due (3.18%), debt_to_income (0.24%): imputed via median.
+
+3.6 Result
+
+Final shape: 10,000 rows × 56 columns, 0 missing values.
+Saved as loans_full_schema_cleaned.csv.
+Summary across all three datasets
+
+No dataset was handled with a single blanket rule. The approved 20%-missingness threshold from the Data Quality Assurance Plan was applied as the default, but two deliberate exceptions were made in Home Credit (OWN_CAR_AGE, OCCUPATION_TYPE) where cross-tabulation evidence showed the missingness was structural (Missing At Random) rather than a genuine data-quality failure, and where the variable was judged plausibly important to the study's credit-risk objective. In LendingClub, missingness patterns were similarly diagnosed before imputation, distinguishing "structurally not applicable" (joint-income fields) from "event never occurred" (delinquency-timing fields), and sentinel/category-based imputation was used instead of blind median substitution where that distinction mattered. German Credit required no imputation, confirmed both by official documentation and independent verification.
+
+Outstanding preprocessing tasks (not yet done): categorical encoding (one-hot/ordinal), IQR-based outlier capping, and min-max normalisation, across all three datasets.

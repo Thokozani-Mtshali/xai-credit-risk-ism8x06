@@ -1,0 +1,27 @@
+# Modelling Log
+*(Covers Step 3 onward — baseline, RF/XGBoost/ensemble, SMOTE comparisons, SHAP. Kept separate from Preprocessing_Decision_Log.md, which covers Steps 1-2 only.)*
+
+---
+
+## Step 3 — Baseline Logistic Regression
+
+Notebook: `04_baseline_logistic_regression.ipynb`. Reloaded scaled train/test splits from Step 2; `.squeeze()` used to restore y files to Series after CSV round-trip.
+
+`LogisticRegression(max_iter=1000, random_state=42)` fit per dataset. Results:
+
+| Dataset | AUC-ROC | F1 (minority) | G-mean | MCC |
+|---|---|---|---|---|
+| German Credit | 0.805 | 0.544 | 0.645 | 0.401 |
+| Home Credit | 0.744 | 0.020 | 0.100 | 0.062 |
+| LendingClub | 0.853 | 0.200 | 0.333 | 0.331 |
+
+**Key finding:** AUC alone looks acceptable across all three, but F1/G-mean/MCC collapse on Home Credit and LendingClub — the two more severely imbalanced datasets. Verified this is a genuine imbalance effect, not a bug: on Home Credit's 61,502-row test set (true positive rate ~8%), the model predicted positive for only 101 rows (0.16%). This directly validates the proposal's decision (Section 5) to report F1/G-mean/MCC alongside AUC rather than AUC/accuracy alone, and provides baseline evidence for RQ2.
+
+**Literature check:** a comparable 2025 study (same 5-model design: LR/RF/XGBoost/stacking/MLP) found the same qualitative pattern — LR shows high recall/low precision, RF achieves best F1 (0.81). A separate ensemble-comparison study reported baseline AUC ~0.66–0.69, F1 ~0.18–0.33 — German Credit and LendingClub AUC here exceed that range; Home Credit's F1 (0.02) is more severe than anything in that comparison set. Li & Chen (2020)'s exact figures weren't found in open search, but their abstract's conclusion (LR beats other baselines on most metrics, ensembles beat individual learners overall) is consistent with this result.
+
+Logged as Early Finding #1 (candidate — pending CV confirmation and RF/XGBoost comparison). Full detail in `Early_Findings_Log.md`.
+
+---
+
+## Step 4 onward
+*(Not yet started — RF, XGBoost, stacked ensemble, with/without SMOTE, across all three datasets)*

@@ -1,0 +1,27 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Raw and processed data - too large for Git, and datasets are already
+# documented (source, acquisition date, licence) in Preprocessing_Decision_Log.md
+# Anyone cloning this repo should re-download the raw data per that log,
+# and re-run notebooks 01-03 to regenerate Data/Processed/
+Data/Raw/
+Data/Processed/
+
+# Environment variables / secrets, if any are ever added
+.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# VS Code settings (optional - remove this line if you want to share workspace settings)
+.vscode/

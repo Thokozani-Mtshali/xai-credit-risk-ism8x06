@@ -1,0 +1,136 @@
+# Preprocessing Decision Log
+**Project:** Explainable AI for Credit Risk Assessment
+**Stage:** Data Cleaning — Missingness Diagnosis and Handling
+**Date:** [fill in date(s) you actually ran this]
+**Tools:** Python 3.13, pandas, VS Code + Jupyter extension
+
+---
+
+## 1. German Credit Dataset
+
+**1.1 Dataset source correction**
+- Initial download (`german_credit_data.csv` from Kaggle) was identified as a simplified derivative containing only 10 columns, not the 20-attribute dataset named in the approved proposal.
+- Corrected by fetching the original UCI Statlog (German Credit Data) dataset via the `ucimlrepo` Python package (`fetch_ucirepo(id=144)`), confirmed shape (1000, 21) — 20 features + target, matching the approved proposal.
+- Saved locally as `german_credit_uci_original.csv`.
+
+**1.2 Missingness check**
+- UCI documentation (`statlog_german_credit_data.variables`) confirms zero missing values for all 20 attributes and the target.
+- Verified independently with `df_german.isnull().sum()` — confirmed all zero.
+- **Decision:** No imputation required for this dataset.
+
+**1.3 Categorical decoding**
+- Raw values were coded (e.g. `A11`, `A34`) rather than human-readable. Decoded 13 categorical columns using dictionaries mapped from the official UCI attribute documentation, applied via `.replace()`.
+- Note: `.map()` initially failed silently (returned all NaN) due to pandas 3.0.5's nullable `StringArray` dtype; `.replace()` was used instead and worked correctly.
+- Verified post-decode: `df_german.isnull().sum()` confirmed zero nulls introduced by the decoding step.
+- Saved final cleaned file as `german_credit_uci_original.csv` (overwritten with decoded version).
+
+---
+
+## 2. Home Credit Default Risk Dataset (`application_train.csv`)
+
+**2.1 Scope decision**
+- Only `application_train.csv` was used (307,511 rows, 122 columns). Supplementary tables (`bureau`, `bureau_balance`, `credit_card_balance`, `installments_payments`, `POS_CASH_balance`, `previous_application`) were not merged in, to keep scope manageable given the dataset's already-flagged computational risk (Risk 4 in the approved risk register). `application_test.csv` and `sample_submission.csv` were excluded — no `TARGET` column, irrelevant to this study.
+
+**2.2 Missingness calculated as percentage of rows**
+- 50 columns exceeded 20% missing; 17 columns had missingness below 20%; remaining 55 columns had none.
+
+**2.3 Columns dropped (>20% missing, no viable recovery)**
+- 48 columns dropped: mostly building/property physical-characteristic fields (e.g. `COMMONAREA_AVG/MODE/MEDI`, `LIVINGAPARTMENTS_*`, `FLOORSMIN_*`, `YEARS_BUILD_*`, `ELEVATORS_*`, `WALLSMATERIAL_MODE`, `NONLIVINGAREA_*`, etc.), ranging ~48–70% missing. Pattern consistent with an optional supplementary building survey not completed for most applications. No reliable proxy variable was identified to recover a "not applicable" interpretation for this group.
+- `EXT_SOURCE_1` (56.4% missing) also dropped. Unlike the property columns, this is an external credit bureau score — its absence likely reflects genuine data unavailability rather than structural non-applicability. Logged separately as a limitation given its plausible predictive relevance to credit risk.
+
+**2.4 Columns retained above 20% threshold, with justified exceptions**
+- `OWN_CAR_AGE` (66.0% missing): cross-tabulated against `FLAG_OWN_CAR`. Missingness confirmed Missing At Random — 202,924 of 202,929 missing cases correspond to applicants who do not own a car. Imputed as 0 for non-owners (`FLAG_OWN_CAR == 'N'`); the 5 remaining genuine gaps (car owners with missing age) imputed using the median age among car owners.
+- `OCCUPATION_TYPE` (31.3% missing): cross-tabulated against `NAME_INCOME_TYPE`. Missingness concentrated among pensioners (55,357 of 55,362 missing) but also present, less explicably, among ~41,000 working/commercial-associate/state-servant applicants — a messier MAR pattern than `OWN_CAR_AGE`, with no single clean proxy variable. Retained (not dropped) given its plausible relevance to credit risk (occupation relates to income stability); missing values imputed as a new category, `"Unknown/Not Applicable"`, rather than assuming a specific cause.
+
+**2.5 Columns below 20% threshold — standard imputation**
+- `AMT_REQ_CREDIT_BUREAU_HOUR/DAY/WEEK/MON/QRT/YEAR` (13.5% missing each): confirmed via cross-check that all missing rows are missing across all six columns simultaneously (41,519 rows) — consistent with "no credit bureau inquiry history" rather than random data loss. Imputed as 0.
+- `EXT_SOURCE_2` (0.2%), `EXT_SOURCE_3` (19.8%): no clear structural explanation identified; imputed with median (per standard rule in the approved Data Quality Assurance Plan).
+- Remaining low-missingness columns (`AMT_ANNUITY`, `AMT_GOODS_PRICE`, `CNT_FAM_MEMBERS`, `OBS_30/60_CNT_SOCIAL_CIRCLE`, `DEF_30/60_CNT_SOCIAL_CIRCLE`, `DAYS_LAST_PHONE_CHANGE` — all <1% missing): imputed via median (numeric). `NAME_TYPE_SUITE`: imputed via mode (categorical).
+
+**2.6 Result**
+- Final shape: 307,511 rows × 74 columns, 0 missing values.
+- Saved as `application_train_cleaned.csv`.
+
+---
+
+## 3. LendingClub Dataset (`loans_full_schema.csv`)
+
+**3.1 Dataset verification**
+- Confirmed `loans_full_schema` is a legitimate, distinct, well-documented dataset (10,000 observations, ~55 variables) rather than a trimmed/simplified derivative — no substitution needed. Retained as originally downloaded.
+
+**3.2 Missingness identified**
+- 9 columns with missing values, ranging from 0.24% to 85.45%. Remaining 47 columns had no missing values.
+
+**3.3 Joint-income fields (perfect structural MAR)**
+- `annual_income_joint` (85.05%), `debt_to_income_joint` (85.05%), `verification_income_joint` (85.45%): cross-tabulated against `application_type`. Missingness corresponds perfectly (100%) to individual (non-joint) applications — 8,505 of 8,505 missing cases are individual applications; all 1,495 joint applications have complete values. Imputed as 0 (numeric fields) / `"Not Applicable"` (categorical field), representing genuine structural absence of a co-borrower rather than unknown data.
+
+**3.4 Delinquency/inquiry timing fields (MAR, "event never occurred")**
+- `months_since_last_delinq` (56.58%), `months_since_90d_late` (77.15%), `months_since_last_credit_inquiry` (12.71%): cross-tabulated `months_since_last_delinq` against `delinq_2y`. 5,646 of 5,658 missing cases (99.8%) correspond to applicants with zero recorded delinquencies in the last 2 years, supporting the interpretation that missingness reflects "no such event has occurred" rather than an unknown/unrecorded value. All three fields imputed with a sentinel value of 999, representing "no event on record / effectively very long ago."
+- **Limitation noted:** sentinel-value imputation is a modelling convenience; tree-based models (Random Forest, XGBoost) can generally learn an implicit threshold around this value, but it would distort results if a linear model were ever applied directly to this feature without adjustment.
+
+**3.5 Remaining low-missingness columns — standard imputation**
+- `emp_title` (8.33%): imputed as `"Not Disclosed"`.
+- `emp_length` (8.17%): imputed as 0 (plausible for unemployed/undisclosed applicants).
+- `num_accounts_120d_past_due` (3.18%), `debt_to_income` (0.24%): imputed via median.
+
+**3.6 Result**
+- Final shape: 10,000 rows × 56 columns, 0 missing values.
+- Saved as `loans_full_schema_cleaned.csv`.
+
+---
+
+---
+
+## 4. Encoding and Outlier Capping (all three datasets)
+
+**General note on sequencing:** normalisation (min-max scaling) was deliberately deferred to after the train/test split (Step 2), rather than done here, to avoid data leakage — scaling using statistics from the full dataset (including what will become the test set) would let test-set information influence training.
+
+**General note on outlier capping method:** standard IQR capping (`Q1 - 1.5×IQR`, `Q3 + 1.5×IQR`) was used throughout, with the lower bound floored at 0 wherever a variable cannot logically be negative (e.g. loan amounts, income, durations). An initial run on German Credit did not apply this floor and produced nonsensical negative lower bounds (e.g. -6.0 months); this was caught and corrected before proceeding, and the same floored version was used consistently across all three datasets from that point on.
+
+### 4.1 German Credit
+- Target recoded from {1, 2} to {0, 1}: 0 = Good (700 cases), 1 = Bad/default (300 cases) — confirms a mild ~70:30 imbalance.
+- IQR outlier capping applied to `duration_months`, `credit_amount`, `age`: **zero outliers detected** in all three columns once the lower bound was correctly floored at 0. Logged as a genuine finding (no extreme values present), not skipped.
+- Ordinal encoding applied to 3 naturally-ordered columns (`savings_account`, `employment_since`, `job`) via `.map()` with explicit rank dictionaries.
+- One-hot encoding applied to 10 remaining nominal columns via `pd.get_dummies(..., drop_first=True)`.
+- **Process note:** accidentally re-running the ordinal-encoding cell a second time silently converted all three columns to NaN, since `.map()` was applied to already-numeric values that no longer matched the text-based dictionary keys. Resolved by reloading the dataset fresh and re-running all encoding cells once each, in order, after a full kernel restart. Lesson applied going forward: encoding/mapping transformations are not idempotent and should not be re-run without first reloading source data.
+- Final shape: 1000 rows × 41 columns. Saved as `german_credit_encoded.csv`.
+
+### 4.2 Home Credit
+- Target confirmed: 282,686 non-default (91.9%) vs 24,825 default (8.1%) — matches proposal's documented ~8:1 ratio.
+- `CODE_GENDER` contained a placeholder value `"XNA"` for 4 rows (out of 307,511). Given the negligible count, these 4 rows were dropped rather than imputed or encoded as a separate category.
+- Binary columns (`NAME_CONTRACT_TYPE`, `FLAG_OWN_CAR`, `FLAG_OWN_REALTY`) mapped directly to 0/1.
+- Low-cardinality nominal columns (`CODE_GENDER`, `NAME_TYPE_SUITE`, `NAME_INCOME_TYPE`, `NAME_EDUCATION_TYPE`, `NAME_FAMILY_STATUS`, `NAME_HOUSING_TYPE`, `WEEKDAY_APPR_PROCESS_START`) one-hot encoded.
+- High-cardinality columns (`ORGANIZATION_TYPE`, 58 categories; `OCCUPATION_TYPE`, 19 categories) frequency-encoded instead of one-hot, to avoid an excessive number of sparse binary columns.
+- **`DAYS_EMPLOYED` data quality issue identified and fixed:** 55,374 rows (18.0%) contained a known placeholder value of `365243` instead of a real negative day-count, corresponding to retired/unemployed applicants. A binary flag column (`DAYS_EMPLOYED_ANOMALY`) was created to preserve this information, and the placeholder was replaced with 0 ("not currently employed"). Without this fix, the column's mean was a nonsensical 63,815 days (~175 years); after the fix, mean corrected to -1,954.8 days (~5.4 years), consistent with the genuinely-employed population.
+- IQR outlier capping applied to 4 monetary columns (`AMT_INCOME_TOTAL`, `AMT_CREDIT`, `AMT_ANNUITY`, `AMT_GOODS_PRICE`), floored at 0. `AMT_INCOME_TOTAL` had 14,035 outlier values capped (largest of the three datasets), consistent with a known extreme high-income outlier in this dataset (max value of 117,000,000 prior to capping, against a median of 147,150). Day-based columns (`DAYS_BIRTH`, `DAYS_REGISTRATION`, `DAYS_ID_PUBLISH`) were deliberately excluded from capping, since their negative values are correct by design (days before application) and their ranges were already sensible — capping would have incorrectly clipped legitimately old/young applicants.
+- Final shape: 307,507 rows × 101 columns (after the 4 XNA-row drop). Saved as `application_train_encoded.csv`.
+
+### 4.3 LendingClub
+- **Target variable construction (methodological decision):** `loan_status` contains 6 categories, only 2 of which represent fully resolved outcomes (Fully Paid, Charged Off — only 7 Charged Off cases in the full 10,000-row sample). Following common practice identified in prior LendingClub-based research (multiple independent studies group any sign of repayment trouble as risk rather than restricting to only fully resolved loans), the target was defined as: default/risk (1) = Charged Off + Late (31-120 days) + Late (16-30 days) + In Grace Period; non-default (0) = Fully Paid + Current. A stricter "fully resolved loans only" approach (used in some published work, e.g. Li 2018/Stanford CS229) was considered and rejected, as it would reduce the usable sample to 454 rows with only 7 positive cases — not viable for meaningful model training/evaluation at this dataset's scale. Resulting class balance: 9,822 non-default (98.22%) vs 178 default (1.78%) — the most severe imbalance of the three datasets.
+  - **Limitation to state explicitly:** "Current" loans are treated as non-default despite their true final outcome being unknown at the time of this data snapshot.
+- `emp_title` (4,742 unique free-text job titles) dropped — too high-cardinality/unstructured to encode meaningfully.
+- `grade` (A-G) and `sub_grade` (A1-G5, 32 categories) ordinally encoded, preserving their natural risk-ranking order.
+- `state` (50 categories) frequency-encoded, same rationale as Home Credit's high-cardinality columns.
+- Remaining low-cardinality nominal columns (`homeownership`, `verified_income`, `verification_income_joint`, `loan_purpose`, `application_type`, `issue_month`, `initial_listing_status`, `disbursement_method`) one-hot encoded.
+- IQR outlier capping applied to 11 continuous columns (`annual_income`, `debt_to_income`, `loan_amount`, `interest_rate`, `installment`, `balance`, `paid_total`, `paid_principal`, `paid_interest`, `total_credit_limit`, `total_credit_utilized`), floored at 0. Notable: `debt_to_income` had 33 rows with implausibly high values (max 469.09, a debt-to-income ratio far outside sensible real-world range); these were treated as ordinary outliers via standard IQR capping rather than a separate placeholder-style investigation, since the count was small (0.33% of rows) and no clear systematic cause (unlike `DAYS_EMPLOYED`'s clean placeholder pattern) was identified.
+- Final shape: 10,000 rows × 70 columns. Saved as `loans_full_schema_encoded.csv`.
+
+---
+
+## 5. Train/Test Split, Cross-Validation Setup, and Normalisation (Step 2)
+
+- Target column standardized to lowercase `target` across all datasets (Home Credit's was `TARGET`).
+- Stratified 80:20 train/test split applied to all three datasets (`random_state=42`), confirmed via post-split class balance checks that train and test proportions matched almost exactly for each dataset — German (70/30), Home Credit (~91.9/8.1), LendingClub (~98.2/1.8).
+- 5-fold `StratifiedKFold` (`shuffle=True, random_state=42`) applied to each training set separately; fold row-indices exported to JSON files for the audit trail, supporting later reproducibility and the planned SHAP-stability-across-folds analysis.
+- **Normalisation (min-max scaling) applied last, after the split, specifically to avoid data leakage** that would occur if scaling statistics were computed from the full dataset (including test data) before separating it out. The scaler was fit only on each training set, then used to transform both that training set and its corresponding test set.
+- Minor test-set values falling marginally outside the expected [0,1] range were observed and investigated rather than treated as errors: German Credit's test set showed a value of -0.0034, and two LendingClub columns (`annual_income_joint`, `current_installment_accounts`) showed test-set values up to 1.59. Both are consistent with the scaler correctly reflecting training-only statistics, combined with small subpopulation sizes (few joint-income applicants) and right-skewed count distributions — not a scaling defect.
+
+---
+
+## Summary across all three datasets
+
+No dataset was handled with a single blanket rule. The approved 20%-missingness threshold from the Data Quality Assurance Plan was applied as the default, but two deliberate exceptions were made in Home Credit (`OWN_CAR_AGE`, `OCCUPATION_TYPE`) where cross-tabulation evidence showed the missingness was structural (Missing At Random) rather than a genuine data-quality failure, and where the variable was judged plausibly important to the study's credit-risk objective. In LendingClub, missingness patterns were similarly diagnosed before imputation, distinguishing "structurally not applicable" (joint-income fields) from "event never occurred" (delinquency-timing fields), and sentinel/category-based imputation was used instead of blind median substitution where that distinction mattered. German Credit required no imputation, confirmed both by official documentation and independent verification.
+
+Encoding and outlier capping followed the same evidence-based philosophy: standard rules (one-hot for nominal, ordinal for ranked categories, IQR capping with a 0-floor) were applied as the default across all three datasets, but genuine data-quality issues were investigated and handled individually where the standard rule would have been inappropriate or lossy — Home Credit's `DAYS_EMPLOYED` placeholder value, its `CODE_GENDER` "XNA" rows, and LendingClub's `loan_status`-to-binary-target construction all required a documented judgement call rather than mechanical processing.
+
+**Outstanding preprocessing tasks (not yet done):** min-max normalisation for all three datasets — deliberately deferred until after the train/test split (Step 2) to avoid data leakage from scaling on the full dataset before separating out the test set.
