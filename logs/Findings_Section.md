@@ -103,6 +103,19 @@ The results support a substantially stronger and more precise conclusion than th
 
 The sole exception is Random Forest on LendingClub, where SMOTE-ENN's additional cleaning step does not resolve the complete collapse to zero positive predictions observed under plain SMOTE; if anything, Matthews Correlation Coefficient turns marginally negative. This is an important refinement of the earlier root-cause analysis: rather than concluding that resampling in general is harmful on this dataset, the evidence instead points to Random Forest specifically being unable to benefit from synthetic oversampling once the real minority population becomes as sparse as LendingClub's 142 training-set cases, regardless of whether that oversampling is combined with a cleaning step. XGBoost, by contrast, is able to make productive use of resampling on the same data, with or without cleaning, though it benefits most when cleaning is included. This reframes Random Forest's LendingClub failure as the genuine outlier in this study, rather than evidence against SMOTE-based resampling as a whole.
 
+### Ruling out a fixable hyperparameter explanation for Random Forest's collapse
+
+Given the severity and consistency of Random Forest's failure on LendingClub, a further, more targeted investigation was carried out to determine whether this was a fixable consequence of default hyperparameter settings rather than a genuine structural limitation. Four additional configurations were tested: class-reweighting via `class_weight='balanced'` with no resampling at all, a substantially constrained tree structure (maximum depth of five, minimum ten samples per leaf) with no resampling, and the same constrained structure combined with SMOTE-ENN.
+
+| Configuration | F1 | AUC-ROC |
+|---|---|---|
+| Unadjusted Random Forest (no resampling, default hyperparameters) | 0.286 | 0.851 |
+| Random Forest, `class_weight='balanced'`, no resampling | 0.105 | 0.827 |
+| Random Forest, constrained depth, no resampling | 0.000 | 0.793 |
+| Random Forest, constrained depth, SMOTE-ENN | 0.077 | 0.701 |
+
+Every single intervention tested — synthetic oversampling, hybrid resampling with cleaning, class-weight reweighting, and constraining tree complexity — produced a worse result than using Random Forest entirely unadjusted. This is a striking and consistent enough pattern to draw a firm conclusion from: on this dataset, Random Forest's underlying bagging mechanism appears fundamentally unable to make productive use of any standard imbalance-correction technique once the real minority population is as sparse as 142 training cases, rather than this being a matter of insufficiently tuned hyperparameters. The practical implication is direct: on datasets with a minority class this small in absolute terms, Random Forest should be used without imbalance-correction applied, or another algorithm — XGBoost or the stacked ensemble, both of which were shown to benefit from resampling on the same data — should be preferred instead.
+
 ---
 
 ## 4. Explainability and SHAP Stability Under Resampling (RQ4)

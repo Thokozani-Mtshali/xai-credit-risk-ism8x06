@@ -139,6 +139,21 @@ Logged as Early Finding #10 (updated after all 3 datasets tested — status: con
 
 **Not yet done:** CV confirmation of SMOTE-ENN results; SMOTE-ENN on the stacked ensemble; SHAP stability check comparing SMOTE-ENN vs no-resampling (RQ4 analysis so far only compares plain SMOTE vs no resampling).
 
+## Step 9 — Hyperparameter Investigation of RF's LendingClub Collapse
+
+Notebook: `09_rf_tuning_lendingclub.ipynb`. Purpose: determine whether RF's collapse (Steps 4, 7, 8) is a fixable default-hyperparameter artifact or a genuine structural limitation.
+
+Four configurations tested against the unadjusted baseline (F1=0.286, the best RF result on this dataset):
+| Config | F1 | AUC-ROC |
+|---|---|---|
+| `class_weight='balanced'`, no resampling | 0.105 | 0.827 |
+| Constrained depth (`max_depth=5, min_samples_leaf=10`), no resampling | 0.000 | 0.793 |
+| Constrained depth + SMOTE-ENN | 0.077 | 0.701 |
+
+**Result: every intervention tested made RF worse than doing nothing.** This rules out "fixable via tuning" — settled as a genuine structural limitation of RF's bagging mechanism on this severely sparse minority class (142 training cases), not a hyperparameter or resampling-technique problem. Practical conclusion: don't apply imbalance correction to RF when the minority class is this sparse in absolute terms; use XGBoost or the stacked ensemble instead (both benefit from resampling on the same data).
+
+Logged as Early Finding #11 (status: confirmed, single split — considered a settled question for this project phase, no further tuning needed). Full detail in `Early_Findings_Log.md`. `Findings_Section.md` updated with a new "Ruling out a fixable hyperparameter explanation" subsection.
+
 **Update — Home Credit SHAP stability CV check completed:** 2 of 5 folds run (memory-constrained: 300-row validation sample per fold, same sequential fit/explain/delete/gc.collect() pattern as the single-split version). Results: 0.926, 0.915 — closely matching the single-split value (0.906) and landing exactly between LendingClub's fold range (0.767-0.773) and German Credit's fold range (0.966-0.984), with zero overlap anywhere.
 
 **The three-dataset SHAP stability ordering is now fully CV-confirmed at every level:**
