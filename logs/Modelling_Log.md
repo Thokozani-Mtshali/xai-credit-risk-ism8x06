@@ -120,6 +120,25 @@ This upgrades the LendingClub component of Early Finding #2 from "single-split" 
 
 **Still single-split only (not yet CV-confirmed):** German Credit/Home Credit SMOTE comparisons; XGBoost and Stacked ensemble SMOTE effects on LendingClub.
 
+## Step 8 — SMOTE-ENN Comparison (closing the approved plan's Risk 3 gap)
+
+Notebook: `08_smoteenn_comparison.ipynb`. Tested `imblearn.combine.SMOTEENN` against existing no-SMOTE/plain-SMOTE results, RF + XGBoost, all three datasets.
+
+| Dataset | Model | No resampling (F1) | SMOTE (F1) | SMOTE-ENN (F1) |
+|---|---|---|---|---|
+| German Credit | RF | 0.525 | 0.561 | **0.635** |
+| German Credit | XGBoost | 0.463 | 0.584 | 0.589 |
+| Home Credit | RF | 0.002 | 0.016 | **0.182** |
+| Home Credit | XGBoost | 0.059 | 0.062 | **0.235** |
+| LendingClub | RF | 0.286 | 0.000 | 0.000 |
+| LendingClub | XGBoost | 0.468 | 0.440 | **0.549** |
+
+**Key finding:** SMOTE-ENN outperforms plain SMOTE on nearly every model/dataset combination — dramatically so on Home Credit (RF F1 0.002→0.182, XGBoost F1 0.059→0.235). The sole exception is RF on LendingClub, which still collapses to F1/G-mean=0.000 (MCC slightly negative) even with SMOTE-ENN's cleaning step. **This reframes RF-on-LendingClub as the true outlier in the study — not evidence that resampling generally hurts LendingClub, but that RF specifically cannot benefit from any synthetic oversampling once the minority class is as sparse as 142 training cases.** XGBoost benefits from resampling on all three datasets, most when combined with cleaning (SMOTE-ENN).
+
+Logged as Early Finding #10 (updated after all 3 datasets tested — status: confirmed, single split, genuinely strengthens the RQ3 picture). Full detail in `Early_Findings_Log.md`. `Findings_Section.md` updated with a new "SMOTE-ENN as an alternative resampling strategy" subsection.
+
+**Not yet done:** CV confirmation of SMOTE-ENN results; SMOTE-ENN on the stacked ensemble; SHAP stability check comparing SMOTE-ENN vs no-resampling (RQ4 analysis so far only compares plain SMOTE vs no resampling).
+
 **Update — Home Credit SHAP stability CV check completed:** 2 of 5 folds run (memory-constrained: 300-row validation sample per fold, same sequential fit/explain/delete/gc.collect() pattern as the single-split version). Results: 0.926, 0.915 — closely matching the single-split value (0.906) and landing exactly between LendingClub's fold range (0.767-0.773) and German Credit's fold range (0.966-0.984), with zero overlap anywhere.
 
 **The three-dataset SHAP stability ordering is now fully CV-confirmed at every level:**

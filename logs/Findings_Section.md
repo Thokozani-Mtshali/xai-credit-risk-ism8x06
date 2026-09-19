@@ -86,6 +86,23 @@ Read together, these three datasets show a clear, non-obvious pattern directly r
 
 A secondary finding relevant to Research Question 1: the stacked ensemble was the strongest configuration on German Credit and Home Credit, but plain XGBoost without SMOTE outperformed the stacked ensemble on LendingClub. This suggests that while ensembling provides a genuine advantage over standalone classifiers in most conditions tested, that advantage is not universal, and appears itself to interact with dataset scale and imbalance severity rather than holding unconditionally.
 
+### SMOTE-ENN as an alternative resampling strategy
+
+The approved Data Collection Management and Quality Assurance Plan (Risk 3 mitigation) specified testing SMOTE-ENN alongside plain SMOTE, since SMOTE-ENN combines synthetic oversampling with a cleaning step that removes samples lying in ambiguous or overlapping regions between classes. This comparison was completed across all three datasets, for Random Forest and XGBoost.
+
+| Dataset | Model | No resampling | SMOTE | SMOTE-ENN |
+|---|---|---|---|---|
+| German Credit | RF (F1) | 0.525 | 0.561 | **0.635** |
+| German Credit | XGBoost (F1) | 0.463 | 0.584 | 0.589 |
+| Home Credit | RF (F1) | 0.002 | 0.016 | **0.182** |
+| Home Credit | XGBoost (F1) | 0.059 | 0.062 | **0.235** |
+| LendingClub | RF (F1) | 0.286 | 0.000 | 0.000 |
+| LendingClub | XGBoost (F1) | 0.468 | 0.440 | **0.549** |
+
+The results support a substantially stronger and more precise conclusion than the SMOTE-only comparison alone would suggest: **SMOTE-ENN outperforms plain SMOTE on nearly every model-dataset combination tested, with a single specific exception.** On Home Credit in particular, the improvement is striking: Random Forest's F1-score rises from an almost non-functional 0.002–0.016 range under no resampling or plain SMOTE to a genuinely usable 0.182 with SMOTE-ENN, and XGBoost's F1 nearly quadruples, from around 0.06 to 0.235. On German Credit, Random Forest with SMOTE-ENN achieves the best result of any configuration tested for that model. On LendingClub, XGBoost also improves clearly under SMOTE-ENN, reaching its best result across all three resampling conditions.
+
+The sole exception is Random Forest on LendingClub, where SMOTE-ENN's additional cleaning step does not resolve the complete collapse to zero positive predictions observed under plain SMOTE; if anything, Matthews Correlation Coefficient turns marginally negative. This is an important refinement of the earlier root-cause analysis: rather than concluding that resampling in general is harmful on this dataset, the evidence instead points to Random Forest specifically being unable to benefit from synthetic oversampling once the real minority population becomes as sparse as LendingClub's 142 training-set cases, regardless of whether that oversampling is combined with a cleaning step. XGBoost, by contrast, is able to make productive use of resampling on the same data, with or without cleaning, though it benefits most when cleaning is included. This reframes Random Forest's LendingClub failure as the genuine outlier in this study, rather than evidence against SMOTE-based resampling as a whole.
+
 ---
 
 ## 4. Explainability and SHAP Stability Under Resampling (RQ4)
@@ -142,7 +159,7 @@ Completing the Home Credit comparison locally required a more memory-conservativ
 
 Several further limitations should be considered when interpreting the findings reported above.
 
-Most results derive from a single 80:20 train/test split for each dataset, rather than an average across the five-fold cross-validation structure established during data preparation. The two most consequential results in this study — the Random Forest collapse on LendingClub and the three-dataset SHAP stability ordering — were checked directly against this limitation and confirmed across cross-validation folds, as reported in Sections 3 and 4 respectively. The remaining single-split results — the SMOTE comparisons for the other model configurations across all three datasets, and the XGBoost and stacked-ensemble SMOTE comparisons specifically on LendingClub — have not yet been subjected to the same cross-validation check. While the consistency and internal logic of these results across datasets and metrics lends them credibility, formally confirming them across folds would further strengthen confidence in their stability and is identified as a priority for the next phase of this work.
+Most results derive from a single 80:20 train/test split for each dataset, rather than an average across the five-fold cross-validation structure established during data preparation. The two most consequential results in this study — the Random Forest collapse on LendingClub and the three-dataset SHAP stability ordering — were checked directly against this limitation and confirmed across cross-validation folds, as reported in Sections 3 and 4 respectively. The remaining single-split results — the SMOTE comparisons for the other model configurations across all three datasets, the XGBoost and stacked-ensemble SMOTE comparisons specifically on LendingClub, and the SMOTE-ENN comparison reported above — have not yet been subjected to the same cross-validation check. The SHAP stability analysis in Section 4 also compares plain SMOTE against no resampling only; given SMOTE-ENN's markedly better performance in most conditions tested, whether SHAP stability behaves similarly under SMOTE-ENN as under plain SMOTE has not yet been examined and is a natural extension of this work. While the consistency and internal logic of these results across datasets and metrics lends them credibility, formally confirming them across folds, and extending the SHAP stability comparison to SMOTE-ENN, are both identified as priorities for the next phase of this work.
 
 Model hyperparameters were left at reasonable default values rather than tuned via grid search, in the interest of first establishing a broad comparative picture across three datasets, six model configurations, and four research questions before committing computational resources to fine-tuning any single configuration. Tuned models may alter the specific magnitude of the results reported here, even if the broader directional patterns are expected to persist.
 
