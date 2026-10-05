@@ -118,7 +118,62 @@ Notebook: `07_cv_confirmation.ipynb`. Reused the 5 fold assignments already save
 
 This upgrades the LendingClub component of Early Finding #2 from "single-split" to "5-fold CV confirmed" — now the most rigorously validated result in the study. `Findings_Section.md` and `Early_Findings_Log.md` (entry #7) both updated accordingly.
 
-**Still single-split only (not yet CV-confirmed):** German Credit/Home Credit SMOTE comparisons; XGBoost and Stacked ensemble SMOTE effects on LendingClub.
+**Superseded by Step 10 below** — all single-split SMOTE comparisons across all three datasets have now been replaced with tuned, cross-validated results.
+
+---
+
+## Step 10 — Final Hyperparameter Tuning and Full Cross-Validation (closes methodology gaps against approved proposal Sections 7.3, 7.5)
+
+Notebook: `10_final_tuning_cv.ipynb`. Grid search (`GridSearchCV`, German Credit and LendingClub) / randomized search (`RandomizedSearchCV`, Home Credit — see scoping note below) over the exact parameter grids specified in the approved proposal: RF (`n_estimators`, `max_depth`, `min_samples_leaf`, `max_features`), XGBoost (`n_estimators`, `learning_rate`, `max_depth`, `subsample`, `colsample_bytree`). Scoring metric: F1 (minority class), not AUC, given the whole study's focus on minority detection. All final results evaluated via full cross-validation (`cross_validate`), reporting mean ± standard deviation across folds, rather than a single train/test split.
+
+**German Credit (5-fold CV throughout):**
+| Config | AUC-ROC | F1 | G-mean | MCC |
+|---|---|---|---|---|
+| RF (no resample) | 0.790±0.039 | 0.481±0.103 | 0.589±0.083 | 0.357±0.114 |
+| RF (SMOTE) | 0.791±0.042 | 0.591±0.091 | 0.694±0.073 | 0.430±0.116 |
+| RF (SMOTE-ENN) | 0.778±0.044 | 0.602±0.029 | 0.713±0.026 | 0.397±0.050 |
+| XGBoost (no resample) | 0.785±0.041 | 0.579±0.066 | 0.679±0.050 | 0.424±0.090 |
+| XGBoost (SMOTE) | 0.772±0.037 | 0.607±0.050 | 0.720±0.043 | 0.416±0.073 |
+| XGBoost (SMOTE-ENN) | 0.778±0.046 | 0.610±0.036 | 0.722±0.032 | 0.412±0.060 |
+| Stacked (no resample) | 0.796±0.039 | 0.500±0.082 | 0.605±0.067 | 0.372±0.091 |
+| Stacked (SMOTE) | 0.794±0.044 | 0.582±0.083 | 0.689±0.068 | 0.410±0.106 |
+| Stacked (SMOTE-ENN) | 0.786±0.044 | 0.600±0.037 | 0.714±0.032 | 0.397±0.060 |
+
+**LendingClub (5-fold CV throughout):**
+| Config | AUC-ROC | F1 | G-mean | MCC |
+|---|---|---|---|---|
+| RF (no resample) | 0.772±0.047 | 0.118±0.047 | 0.246±0.053 | 0.244±0.053 |
+| RF (SMOTE) | 0.769±0.010 | 0.135±0.096 | 0.352±0.148 | 0.121±0.099 |
+| RF (SMOTE-ENN) | 0.785±0.014 | 0.147±0.104 | 0.302±0.120 | 0.152±0.108 |
+| XGBoost (no resample) | 0.873±0.040 | 0.403±0.116 | 0.504±0.092 | 0.486±0.100 |
+| XGBoost (SMOTE) | 0.858±0.036 | 0.389±0.148 | 0.497±0.124 | 0.455±0.127 |
+| XGBoost (SMOTE-ENN) | 0.850±0.028 | 0.378±0.140 | 0.491±0.119 | 0.447±0.114 |
+| Stacked (no resample) | 0.835±0.050 | 0.365±0.132 | 0.471±0.108 | 0.454±0.116 |
+| Stacked (SMOTE) | 0.798±0.023 | 0.361±0.179 | 0.481±0.156 | 0.407±0.167 |
+| Stacked (SMOTE-ENN) | 0.808±0.021 | 0.329±0.134 | 0.460±0.122 | 0.376±0.122 |
+
+**Home Credit (3-fold CV throughout — scoped down; see note below):**
+| Config | AUC-ROC | F1 | G-mean | MCC |
+|---|---|---|---|---|
+| RF (no resample) | 0.726±0.002 | 0.001±0.000 | 0.019±0.002 | 0.015±0.001 |
+| XGBoost (no resample) | 0.746±0.001 | 0.041±0.002 | 0.146±0.003 | 0.087±0.001 |
+| Stacked (no resample) | 0.744±0.002 | 0.076±0.005 | 0.203±0.007 | 0.118±0.009 |
+| RF (SMOTE) | 0.675±0.002 | 0.205±0.004 | 0.468±0.007 | 0.125±0.004 |
+| XGBoost (SMOTE) | 0.674±0.003 | 0.190±0.005 | 0.434±0.009 | 0.113±0.005 |
+| Stacked (SMOTE) | 0.680±0.003 | 0.209±0.004 | 0.479±0.004 | 0.128±0.005 |
+| RF (SMOTE-ENN) | 0.706±0.003 | 0.245±0.003 | 0.546±0.001 | 0.166±0.003 |
+| XGBoost (SMOTE-ENN) | 0.705±0.003 | 0.242±0.003 | 0.536±0.009 | 0.163±0.004 |
+| Stacked (SMOTE-ENN) | 0.711±0.003 | 0.245±0.002 | 0.533±0.001 | 0.167±0.002 |
+
+**Scoping note (Home Credit):** the original plan (20 search iterations, 5-fold CV, matching German Credit/LendingClub) was attempted but one search (RF+SMOTE-ENN) exceeded 14 hours without completing, at which point it was interrupted. All remaining Home Credit searches and final CV evaluations were rescoped to `RandomizedSearchCV` with 5 iterations and 3-fold CV. This is a real, documented asymmetry in rigor across datasets, driven by hardware/time constraints, not a methodological choice — must be stated plainly in the report's limitations.
+
+**Key findings from this step:**
+1. **RF's "complete collapse" on LendingClub and Home Credit was partly a default-hyperparameter artifact, not purely structural.** Proper tuning (specifically `min_samples_leaf`) recovers meaningful minority-class signal on both datasets (LendingClub F1: 0.000→0.118-0.147; Home Credit F1: 0.002→0.001-0.245 depending on resampling). This revises Early Finding #11's "unfixable" framing. **However, RF remains the weakest model on both datasets by a wide margin even after tuning** — this part of the original conclusion holds.
+2. **XGBoost no-resampling remains the single best configuration on LendingClub** (F1=0.403±0.116, MCC=0.486±0.100) — confirms the original top-line finding survives tuning and full CV.
+3. **SMOTE-ENN is the clear best resampling choice on Home Credit for every model** (F1 0.242-0.245 vs SMOTE's 0.190-0.209), and recovers much of the AUC-ROC that plain SMOTE sacrificed (0.705-0.711 vs 0.674-0.680) — a clean, strong, tightly-confirmed result.
+4. **German Credit's "stacking wins" framing needs softening**: under tuning, XGBoost alone is competitive with or ahead of the stack in several conditions (e.g., no-resample: XGBoost F1=0.579 vs Stack F1=0.500).
+
+Logged as Early Finding #12 (LendingClub) and #13 (all three datasets, complete). Full detail in `Early_Findings_Log.md`. **`Findings_Section.md` and `Discussion_Section_FINAL.md` both require substantial revision to replace single-split numbers and the old RF narrative with this tuned/CV-based picture.**
 
 ## Step 8 — SMOTE-ENN Comparison (closing the approved plan's Risk 3 gap)
 

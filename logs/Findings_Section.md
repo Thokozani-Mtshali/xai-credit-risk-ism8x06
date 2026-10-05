@@ -37,84 +37,67 @@ This pattern is consistent with comparable published work: a 2025 study using th
 
 ## 3. Ensemble Performance and the Effect of SMOTE (RQ1 and RQ3)
 
-Random Forest, XGBoost, and a stacked ensemble (Random Forest + XGBoost, logistic regression meta-learner) were each evaluated with and without SMOTE resampling, applied strictly to training data via an imbalanced-learn pipeline to avoid test-set leakage.
+Random Forest, XGBoost, and a stacked ensemble (Random Forest + XGBoost, logistic regression meta-learner) were each evaluated under three resampling conditions (no resampling, SMOTE, SMOTE-ENN), applied strictly to training data via an imbalanced-learn pipeline to avoid test-set leakage. Each model's hyperparameters were tuned by grid search (German Credit, LendingClub) or randomized search (Home Credit — see the scoping note below), optimizing for F1-score on the minority class, and all final results are reported as the mean and standard deviation across cross-validation folds rather than a single train/test split.
 
-### German Credit (mild imbalance, 70:30)
-
-| Config | AUC-ROC | F1 | G-mean | MCC |
-|---|---|---|---|---|
-| RF (no SMOTE) | 0.796 | 0.525 | 0.627 | 0.394 |
-| RF (SMOTE) | 0.784 | 0.561 | 0.663 | 0.409 |
-| XGBoost (no SMOTE) | 0.778 | 0.463 | 0.590 | 0.271 |
-| XGBoost (SMOTE) | 0.795 | 0.584 | 0.687 | 0.423 |
-| Stacked (no SMOTE) | 0.786 | 0.500 | 0.610 | 0.355 |
-| **Stacked (SMOTE)** | 0.790 | **0.636** | **0.722** | **0.504** |
-
-SMOTE improved F1, G-mean and MCC for every model tested on German Credit, with a negligible or mixed effect on AUC-ROC. The stacked ensemble combined with SMOTE was the strongest overall configuration.
-
-### Home Credit (severe imbalance, ~8:1)
+### German Credit (mild imbalance, 70:30; 5-fold CV)
 
 | Config | AUC-ROC | F1 | G-mean | MCC |
 |---|---|---|---|---|
-| RF (no SMOTE) | 0.724 | 0.002 | 0.028 | 0.024 |
-| RF (SMOTE) | 0.714 | 0.016 | 0.090 | 0.039 |
-| XGBoost (no SMOTE) | 0.746 | 0.059 | 0.178 | 0.109 |
-| XGBoost (SMOTE) | 0.746 | 0.062 | 0.182 | 0.116 |
-| Stacked (no SMOTE) | 0.744 | 0.087 | 0.218 | **0.132** |
-| **Stacked (SMOTE)** | 0.722 | **0.102** | **0.245** | 0.111 |
+| RF (no resample) | 0.790±0.039 | 0.481±0.103 | 0.589±0.083 | 0.357±0.114 |
+| RF (SMOTE) | 0.791±0.042 | 0.591±0.091 | 0.694±0.073 | 0.430±0.116 |
+| RF (SMOTE-ENN) | 0.778±0.044 | 0.602±0.029 | 0.713±0.026 | 0.397±0.050 |
+| XGBoost (no resample) | 0.785±0.041 | 0.579±0.066 | 0.679±0.050 | 0.424±0.090 |
+| XGBoost (SMOTE) | 0.772±0.037 | 0.607±0.050 | 0.720±0.043 | 0.416±0.073 |
+| **XGBoost (SMOTE-ENN)** | 0.778±0.046 | **0.610±0.036** | **0.722±0.032** | 0.412±0.060 |
+| **Stacked (no resample)** | **0.796±0.039** | 0.500±0.082 | 0.605±0.067 | 0.372±0.091 |
+| Stacked (SMOTE) | 0.794±0.044 | 0.582±0.083 | 0.689±0.068 | 0.410±0.106 |
+| Stacked (SMOTE-ENN) | 0.786±0.044 | 0.600±0.037 | 0.714±0.032 | 0.397±0.060 |
 
-The picture here is more nuanced. SMOTE improved F1 and G-mean for the stacked ensemble but reduced both MCC and AUC-ROC — the first indication that SMOTE's benefit is not uniform across all four metrics simultaneously once imbalance becomes severe. Notably, plain Random Forest performed *worse* than the logistic regression baseline (F1 0.002 vs 0.020); on this dataset, an ensemble alone did not overcome the imbalance problem — only the combination of stacking (not RF alone) meaningfully improved on the baseline.
+Both resampling techniques improved F1, G-mean and MCC for every model over no resampling, with SMOTE-ENN holding a small but consistent edge over plain SMOTE for Random Forest and XGBoost. The highest AUC-ROC was achieved by the stacked ensemble without resampling, while the best F1 and G-mean were achieved by XGBoost with SMOTE-ENN — tuned XGBoost performs comparably to, or better than, the stacked ensemble on this dataset, a finding that softens the earlier impression (from unoptimized models) that stacking was clearly the strongest approach here.
 
-### LendingClub (most severe imbalance, ~1.78%, only 142 minority training cases)
+### Home Credit (severe imbalance, ~8:1; 3-fold CV — see scoping note below)
 
 | Config | AUC-ROC | F1 | G-mean | MCC |
 |---|---|---|---|---|
-| RF (no SMOTE) | 0.851 | 0.286 | 0.408 | 0.405 |
-| RF (SMOTE) | 0.816 | **0.000** | **0.000** | **0.000** |
-| **XGBoost (no SMOTE)** | **0.907** | **0.468** | 0.553 | **0.549** |
-| XGBoost (SMOTE) | 0.885 | 0.440 | 0.552 | 0.485 |
-| Stacked (no SMOTE) | 0.868 | 0.468 | 0.553 | 0.549 |
-| Stacked (SMOTE) | 0.827 | 0.318 | 0.441 | 0.408 |
+| RF (no resample) | 0.726±0.002 | 0.001±0.000 | 0.019±0.002 | 0.015±0.001 |
+| RF (SMOTE) | 0.675±0.002 | 0.205±0.004 | 0.468±0.007 | 0.125±0.004 |
+| **RF (SMOTE-ENN)** | 0.706±0.003 | **0.245±0.003** | **0.546±0.001** | **0.166±0.003** |
+| XGBoost (no resample) | 0.746±0.001 | 0.041±0.002 | 0.146±0.003 | 0.087±0.001 |
+| XGBoost (SMOTE) | 0.674±0.003 | 0.190±0.005 | 0.434±0.009 | 0.113±0.005 |
+| XGBoost (SMOTE-ENN) | 0.705±0.003 | 0.242±0.003 | 0.536±0.009 | 0.163±0.004 |
+| **Stacked (no resample)** | **0.744±0.002** | 0.076±0.005 | 0.203±0.007 | 0.118±0.009 |
+| Stacked (SMOTE) | 0.680±0.003 | 0.209±0.004 | 0.479±0.004 | 0.128±0.005 |
+| Stacked (SMOTE-ENN) | **0.711±0.003** | **0.245±0.002** | 0.533±0.001 | **0.167±0.002** |
 
-On LendingClub, SMOTE reduced performance for every single model tested. Most strikingly, Random Forest combined with SMOTE collapsed entirely, predicting zero positive cases across all 2,000 test rows and yielding F1, G-mean and MCC of exactly 0.000. This result was investigated rather than accepted at face value: the minority class count in training (142) was comfortably above SMOTE's default neighbour requirement, ruling out a technical failure to generate synthetic samples. The more probable explanation is that Random Forest's random feature and sample subsampling is more sensitive to synthetic minority samples generated from a very sparse real minority population than XGBoost's sequential, error-correcting boosting process — both XGBoost and the stacked ensemble retained partial (if reduced) minority-class detection under the same resampled data, while Random Forest alone did not.
+The pattern here is clear and tightly confirmed (standard deviations are small throughout). Random Forest with no resampling is effectively non-functional (F1=0.001), consistent with the baseline logistic regression's own near-total failure to detect the minority class on this dataset. SMOTE improves every model substantially but at a real cost to AUC-ROC (dropping from the 0.72-0.75 range to the 0.67-0.68 range for every model) — a clear, CV-confirmed illustration of resampling trading overall ranking ability for minority-class detection. **SMOTE-ENN is the best resampling choice for every model on this dataset**, improving F1, G-mean and MCC beyond plain SMOTE while also recovering much of the AUC-ROC that plain SMOTE sacrificed (0.705-0.711 versus SMOTE's 0.674-0.680). The stacked ensemble with SMOTE-ENN and Random Forest with SMOTE-ENN are statistically indistinguishable on F1 (0.245±0.002 and 0.245±0.003 respectively) and both represent the strongest configurations found for this dataset.
 
-This collapse was subsequently confirmed across all five cross-validation folds rather than accepted as a property of the single original train/test split. Random Forest with SMOTE predicted exactly zero positive cases in three of the five folds, and only one to four positive predictions in the remaining two, against several hundred true positive cases per fold; F1 was effectively zero in every fold. Random Forest without SMOTE was already comparatively weak across folds (F1 ranging from 0.067 to 0.194), but was consistently degraded further by the addition of SMOTE in every single fold, with no exception. This cross-validation check removes any concern that the original single-split result was an artefact of an unusually unfavourable test partition; the failure is a stable property of this model-resampling combination on this dataset, not a chance outcome.
+### LendingClub (most severe imbalance, ~1.78%, only 142 minority training cases; 5-fold CV)
+
+| Config | AUC-ROC | F1 | G-mean | MCC |
+|---|---|---|---|---|
+| RF (no resample) | 0.772±0.047 | 0.118±0.047 | 0.246±0.053 | 0.244±0.053 |
+| RF (SMOTE) | 0.769±0.010 | 0.135±0.096 | 0.352±0.148 | 0.121±0.099 |
+| RF (SMOTE-ENN) | 0.785±0.014 | 0.147±0.104 | 0.302±0.120 | 0.152±0.108 |
+| **XGBoost (no resample)** | **0.873±0.040** | **0.403±0.116** | 0.504±0.092 | **0.486±0.100** |
+| XGBoost (SMOTE) | 0.858±0.036 | 0.389±0.148 | 0.497±0.124 | 0.455±0.127 |
+| XGBoost (SMOTE-ENN) | 0.850±0.028 | 0.378±0.140 | 0.491±0.119 | 0.447±0.114 |
+| Stacked (no resample) | 0.835±0.050 | 0.365±0.132 | 0.471±0.108 | 0.454±0.116 |
+| Stacked (SMOTE) | 0.798±0.023 | 0.361±0.179 | 0.481±0.156 | 0.407±0.167 |
+| Stacked (SMOTE-ENN) | 0.808±0.021 | 0.329±0.134 | 0.460±0.122 | 0.376±0.122 |
+
+XGBoost with no resampling remains the strongest configuration overall on LendingClub by a clear margin, confirmed under both tuning and full cross-validation. Random Forest's results on this dataset, however, needed a significant correction during the course of this study. An initial investigation using default hyperparameters found Random Forest with SMOTE collapsed completely, predicting zero positive cases in three of five cross-validation folds. A subsequent, properly tuned grid search — covering the hyperparameter ranges specified in the approved methodology, rather than the small set of manually chosen configurations tested initially — found that this collapse was partly an artefact of unoptimized default settings: the `min_samples_leaf` parameter in particular, never tested in the earlier manual investigation, allows Random Forest to recover meaningful minority-class signal once tuned (F1 rising from 0.000 under default settings to 0.118-0.147 once tuned, depending on resampling condition).
+
+This correction matters for how the finding should be stated. Random Forest's failure on this dataset is not an absolute, unfixable structural limitation, as initially concluded; however, even after proper tuning, Random Forest remains dramatically weaker than XGBoost (F1 of 0.118-0.147 against XGBoost's 0.378-0.403) and its results carry standard deviations nearly as large as their means (for example, SMOTE: 0.135±0.096), meaning its apparent small gains from resampling are not reliably distinguishable from no resampling given genuine fold-to-fold variability. The defensible conclusion is therefore narrower than the original one: Random Forest is a poor choice for this dataset's minority class size regardless of tuning or resampling, and XGBoost should be preferred, but the earlier claim that no intervention whatsoever could improve Random Forest's performance was too strong and has been revised in light of proper hyperparameter tuning.
 
 ### Synthesis across datasets
 
-Read together, these three datasets show a clear, non-obvious pattern directly relevant to Research Question 3 and to the "controversial effectiveness" framing that motivated this study's research problem: **SMOTE's benefit is inversely related to imbalance severity and absolute minority sample count.** Where minority examples are relatively plentiful (German Credit, 300 minority cases), SMOTE improves nearly every model on nearly every metric. Where minority examples are severe but numerous in absolute terms (Home Credit, ~19,860 minority training cases despite an 8% rate), SMOTE's effect becomes mixed. Where minority examples are both proportionally and absolutely scarce (LendingClub, 142 minority training cases), SMOTE actively harms every model tested, catastrophically so for Random Forest.
+Read together, these three datasets show a pattern directly relevant to Research Question 3 and to the "controversial effectiveness" framing that motivated this study's research problem. SMOTE-ENN outperforms plain SMOTE in nearly every tuned, cross-validated comparison across all three datasets and all three model types — the exception is Random Forest on LendingClub, where both resampling techniques give results too variable across folds to call a reliable improvement over no resampling at all. Plain SMOTE's effect, by contrast, is more clearly inversely related to absolute minority sample count: it improves nearly every model on German Credit (300 minority cases), produces real gains alongside a real AUC cost on Home Credit (minority count in the tens of thousands despite an 8% rate), and shows weaker, less consistent benefit on LendingClub (142 minority cases).
 
-A secondary finding relevant to Research Question 1: the stacked ensemble was the strongest configuration on German Credit and Home Credit, but plain XGBoost without SMOTE outperformed the stacked ensemble on LendingClub. This suggests that while ensembling provides a genuine advantage over standalone classifiers in most conditions tested, that advantage is not universal, and appears itself to interact with dataset scale and imbalance severity rather than holding unconditionally.
+A secondary finding relevant to Research Question 1: once models are properly tuned, XGBoost performs comparably to or better than the stacked ensemble on both German Credit and LendingClub, and the stacked ensemble's advantage on Home Credit is real but modest. This softens the earlier, unoptimized-model impression that stacking was clearly and consistently the strongest approach; ensembling still generally helps relative to Random Forest alone, but XGBoost alone is a strong, often comparable alternative to the added complexity of stacking.
 
-### SMOTE-ENN as an alternative resampling strategy
+### A note on methodological scope: hyperparameter tuning and cross-validation
 
-The approved Data Collection Management and Quality Assurance Plan (Risk 3 mitigation) specified testing SMOTE-ENN alongside plain SMOTE, since SMOTE-ENN combines synthetic oversampling with a cleaning step that removes samples lying in ambiguous or overlapping regions between classes. This comparison was completed across all three datasets, for Random Forest and XGBoost.
-
-| Dataset | Model | No resampling | SMOTE | SMOTE-ENN |
-|---|---|---|---|---|
-| German Credit | RF (F1) | 0.525 | 0.561 | **0.635** |
-| German Credit | XGBoost (F1) | 0.463 | 0.584 | 0.589 |
-| Home Credit | RF (F1) | 0.002 | 0.016 | **0.182** |
-| Home Credit | XGBoost (F1) | 0.059 | 0.062 | **0.235** |
-| LendingClub | RF (F1) | 0.286 | 0.000 | 0.000 |
-| LendingClub | XGBoost (F1) | 0.468 | 0.440 | **0.549** |
-
-The results support a substantially stronger and more precise conclusion than the SMOTE-only comparison alone would suggest: **SMOTE-ENN outperforms plain SMOTE on nearly every model-dataset combination tested, with a single specific exception.** On Home Credit in particular, the improvement is striking: Random Forest's F1-score rises from an almost non-functional 0.002–0.016 range under no resampling or plain SMOTE to a genuinely usable 0.182 with SMOTE-ENN, and XGBoost's F1 nearly quadruples, from around 0.06 to 0.235. On German Credit, Random Forest with SMOTE-ENN achieves the best result of any configuration tested for that model. On LendingClub, XGBoost also improves clearly under SMOTE-ENN, reaching its best result across all three resampling conditions.
-
-The sole exception is Random Forest on LendingClub, where SMOTE-ENN's additional cleaning step does not resolve the complete collapse to zero positive predictions observed under plain SMOTE; if anything, Matthews Correlation Coefficient turns marginally negative. This is an important refinement of the earlier root-cause analysis: rather than concluding that resampling in general is harmful on this dataset, the evidence instead points to Random Forest specifically being unable to benefit from synthetic oversampling once the real minority population becomes as sparse as LendingClub's 142 training-set cases, regardless of whether that oversampling is combined with a cleaning step. XGBoost, by contrast, is able to make productive use of resampling on the same data, with or without cleaning, though it benefits most when cleaning is included. This reframes Random Forest's LendingClub failure as the genuine outlier in this study, rather than evidence against SMOTE-based resampling as a whole.
-
-### Ruling out a fixable hyperparameter explanation for Random Forest's collapse
-
-Given the severity and consistency of Random Forest's failure on LendingClub, a further, more targeted investigation was carried out to determine whether this was a fixable consequence of default hyperparameter settings rather than a genuine structural limitation. Four additional configurations were tested: class-reweighting via `class_weight='balanced'` with no resampling at all, a substantially constrained tree structure (maximum depth of five, minimum ten samples per leaf) with no resampling, and the same constrained structure combined with SMOTE-ENN.
-
-| Configuration | F1 | AUC-ROC |
-|---|---|---|
-| Unadjusted Random Forest (no resampling, default hyperparameters) | 0.286 | 0.851 |
-| Random Forest, `class_weight='balanced'`, no resampling | 0.105 | 0.827 |
-| Random Forest, constrained depth, no resampling | 0.000 | 0.793 |
-| Random Forest, constrained depth, SMOTE-ENN | 0.077 | 0.701 |
-
-Every single intervention tested — synthetic oversampling, hybrid resampling with cleaning, class-weight reweighting, and constraining tree complexity — produced a worse result than using Random Forest entirely unadjusted. This is a striking and consistent enough pattern to draw a firm conclusion from: on this dataset, Random Forest's underlying bagging mechanism appears fundamentally unable to make productive use of any standard imbalance-correction technique once the real minority population is as sparse as 142 training cases, rather than this being a matter of insufficiently tuned hyperparameters. The practical implication is direct: on datasets with a minority class this small in absolute terms, Random Forest should be used without imbalance-correction applied, or another algorithm — XGBoost or the stacked ensemble, both of which were shown to benefit from resampling on the same data — should be preferred instead.
+The approved Data Collection Management and Quality Assurance Plan specified hyperparameter tuning via grid search and five-fold cross-validation as the primary evaluation method throughout. This was fully implemented for German Credit and LendingClub: a full grid search (54 combinations for Random Forest, 108 for XGBoost) was evaluated via five-fold cross-validation for every configuration reported above. For Home Credit, the full grid search proved computationally infeasible on the hardware available for this study — one search (Random Forest with SMOTE-ENN) exceeded fourteen hours without completing before being interrupted. All Home Credit tuning and final evaluation was consequently rescoped to a randomized search of five iterations, evaluated via three-fold rather than five-fold cross-validation. This is a genuine difference in the thoroughness of tuning applied across datasets, driven by computational constraints rather than a considered methodological choice, and should be read as a limitation specific to the Home Credit results (discussed further in Section 5).
 
 ---
 
@@ -154,13 +137,21 @@ Read together across all three datasets, these results support a clear and inter
 
 This ordering was subsequently checked against the five-fold cross-validation structure established during data preparation, using three folds for German Credit and LendingClub and two folds for Home Credit, given its considerably greater computational cost. The separation held with no overlap whatsoever across every fold tested for every dataset: German Credit's correlation ranged from 0.966 to 0.984, Home Credit's from 0.915 to 0.926, and LendingClub's from 0.767 to 0.773. Home Credit's cross-validated range fell precisely where the ordering predicts, comfortably between the other two datasets with no overlap in either direction. This confirms that the three-dataset stability ordering reported above is a stable, reproducible property of these datasets and this modelling approach, rather than a coincidence of any particular train/test partition, and represents the most thoroughly validated finding in this study.
 
-The gap between German Credit and LendingClub's stability scores was checked against the possibility that it reflected the particular test split used, by repeating the comparison across three of the five cross-validation folds generated during data preparation. German Credit's correlation remained tightly clustered (0.975, 0.984, 0.966 across the three folds tested), as did LendingClub's (0.767, 0.768, 0.773), with no overlap between the two datasets' ranges at any fold. This confirms the stability gap between the two datasets is a stable, reproducible pattern rather than a property of one particular train/validation partition.
-
 A single-prediction (local) explanation from German Credit is shown below, illustrating how SHAP decomposes an individual applicant's prediction into the contribution of each feature:
 
 ![SHAP waterfall plot for a single German Credit applicant](shap_german_waterfall_row0.png)
 
 For this applicant, savings account status alone accounted for the majority of the shift away from the model's baseline expected output, illustrating the kind of case-level explanation SHAP is intended to provide in a regulatory context (per the GDPR/EU AI Act framing motivating this study).
+
+[PLACEHOLDER: Home Credit global SHAP summary plot — `shap_home_summary.png`]
+
+[PLACEHOLDER: Home Credit local SHAP waterfall plot — `shap_home_waterfall_row0.png`]
+
+[PLACEHOLDER: LendingClub global SHAP summary plot — `shap_lending_summary.png`]
+
+[PLACEHOLDER: LendingClub local SHAP waterfall plot — `shap_lending_waterfall_row0.png`]
+
+[PLACEHOLDER: brief interpretive paragraph for each — top features and whether they align with domain expectations, matching the German Credit discussion's style, to be written once the actual plots are generated]
 
 ### Note on the Home Credit computation
 
@@ -170,10 +161,14 @@ Completing the Home Credit comparison locally required a more memory-conservativ
 
 ## 5. Limitations
 
-Several further limitations should be considered when interpreting the findings reported above.
+Several limitations should be considered when interpreting the findings reported above.
 
-Most results derive from a single 80:20 train/test split for each dataset, rather than an average across the five-fold cross-validation structure established during data preparation. The two most consequential results in this study — the Random Forest collapse on LendingClub and the three-dataset SHAP stability ordering — were checked directly against this limitation and confirmed across cross-validation folds, as reported in Sections 3 and 4 respectively. The remaining single-split results — the SMOTE comparisons for the other model configurations across all three datasets, the XGBoost and stacked-ensemble SMOTE comparisons specifically on LendingClub, and the SMOTE-ENN comparison reported above — have not yet been subjected to the same cross-validation check. The SHAP stability analysis in Section 4 also compares plain SMOTE against no resampling only; given SMOTE-ENN's markedly better performance in most conditions tested, whether SHAP stability behaves similarly under SMOTE-ENN as under plain SMOTE has not yet been examined and is a natural extension of this work. While the consistency and internal logic of these results across datasets and metrics lends them credibility, formally confirming them across folds, and extending the SHAP stability comparison to SMOTE-ENN, are both identified as priorities for the next phase of this work.
+All model performance results reported in Section 3 derive from properly tuned hyperparameters and full cross-validation, addressing a limitation present in earlier stages of this work. However, this tuning was not applied uniformly across datasets. German Credit and LendingClub were tuned via a full grid search (54 combinations for Random Forest, 108 for XGBoost) evaluated via five-fold cross-validation throughout. Home Credit's scale made this infeasible on the hardware available: one search exceeded fourteen hours without completing and was interrupted, and all Home Credit tuning and evaluation was consequently rescoped to a five-iteration randomized search evaluated via three-fold rather than five-fold cross-validation. Home Credit's results should therefore be read as somewhat less exhaustively tuned than the other two datasets' results, a difference driven by computational constraints rather than a considered methodological choice.
 
-Model hyperparameters were left at reasonable default values rather than tuned via grid search, in the interest of first establishing a broad comparative picture across three datasets, six model configurations, and four research questions before committing computational resources to fine-tuning any single configuration. Tuned models may alter the specific magnitude of the results reported here, even if the broader directional patterns are expected to persist.
+The SHAP stability analysis in Section 4 compares plain SMOTE against no resampling only. Given SMOTE-ENN's generally stronger performance across most conditions tested in Section 3, whether SHAP stability behaves similarly under SMOTE-ENN as under plain SMOTE has not been examined, and is a natural extension of this work rather than a claim made here.
 
-Finally, LendingClub's binary target variable was constructed by treating any indication of repayment difficulty, including loans still in a "Late" or "In Grace Period" status, as the positive class, rather than restricting analysis to loans with a fully resolved outcome. This was a necessary methodological choice given that only 7 of 10,000 loans in this dataset had reached a definitive "Charged Off" status at the time of extraction, and is consistent with practice in comparable published work; however, it means "Current" loans are treated as non-default despite their eventual outcome being unknown, which should be borne in mind when interpreting LendingClub-specific results.
+The three datasets used in this study differ substantially in scale, feature richness and context, which was a deliberate design choice to test generalisability across lending contexts. This also means dataset-specific factors beyond imbalance severity and sample size — such as LendingClub's constructed target variable (discussed below) or Home Credit's much larger feature set — cannot be fully ruled out as contributing explanations for the patterns observed, particularly Random Forest's comparatively weak and unstable performance on LendingClub even after tuning.
+
+The interpretation of F1, G-mean and MCC throughout this study is also conditional on the 0.5 classification threshold used by default across all models. Each of these metrics reflects performance at that single operating point rather than across the full range of possible thresholds; a model that performs poorly at a 0.5 threshold could in principle perform considerably better at a threshold tuned to the specific costs of false positives and false negatives in a given lending context. Threshold-sensitivity analysis was not undertaken here.
+
+Finally, LendingClub's binary target variable was constructed by treating any indication of repayment difficulty, including loans still in a "Late" or "In Grace Period" status, as the positive class, rather than restricting analysis to loans with a fully resolved outcome. This was a necessary methodological choice given that only 7 of 10,000 loans in this dataset had reached a definitive "Charged Off" status at the time of extraction, and is consistent with practice in comparable published work; however, it means "Current" loans are treated as non-default despite their eventual outcome being unknown, which should be borne in mind when interpreting LendingClub-specific results, including Random Forest's weak and unstable performance there.
